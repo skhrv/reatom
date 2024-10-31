@@ -1,15 +1,4 @@
-import {
-  parseAtoms,
-  assign,
-  LinkedListAtom,
-  reatomString,
-  Action,
-  atom,
-  reatomBoolean,
-  Fn,
-  Ctx,
-  noop,
-} from '@reatom/framework'
+import { parseAtoms, assign, LinkedListAtom, Action, atom, Fn, Ctx, noop, action } from '@reatom/framework'
 import { h, hf, JSX } from '@reatom/jsx'
 import { reatomZod, ZodAtomization } from '@reatom/npm-zod'
 import { z } from 'zod'
@@ -31,6 +20,7 @@ export const Filters = z.object({
   inlinePreview: z.boolean(),
   timestamps: z.boolean(),
   folded: z.boolean(),
+  size: z.number(),
   list: z.array(Filter),
 })
 export type Filters = ZodAtomization<typeof Filters>
@@ -45,10 +35,11 @@ const initState: FiltersJSON = {
   timestamps: true,
   folded: false,
   valuesSearch: '',
+  size: 1000,
   list: [{ name: 'private', search: `(^_)|(\._)`, type: 'mismatch', color: DEFAULT_COLOR, default: true }],
 }
 const initSnapshot = JSON.stringify(initState)
-const version = 'v22'
+const version = 'v23'
 
 const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove: Fn<[Ctx]> }) => (
   <tr>
@@ -126,7 +117,12 @@ const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove
       </FilterButton>
     </td>
     <td>
-      <input id={id} placeholder="RegExp" model:value={filter.search} readonly={filter.default && filter.name === 'private'} />
+      <input
+        id={id}
+        placeholder="RegExp"
+        model:value={filter.search}
+        readonly={filter.default && filter.name === 'private'}
+      />
       {!filter.default && (
         <button title="Remove" aria-label="Remove filter" on:click={remove}>
           x
@@ -187,6 +183,25 @@ export const reatomFilters = (
     },
     name: `${name}.filters`,
   })
+
+  const trackSize = action((ctx) => {
+    const target = ctx.get(filters.size)
+    let { size } = ctx.get(list)
+
+    if (size <= target) return
+
+    list.batch(ctx, () => {
+      while (size > target) {
+        const { head } = ctx.get(list)
+        if (!head) return
+        list.remove(ctx, head)
+        size--
+      }
+    })
+  }, `${name}.trackSize`)
+
+  list.onChange(trackSize)
+  filters.size.onChange(trackSize)
 
   return assign(filters, {
     element: (
@@ -283,10 +298,11 @@ export const reatomFilters = (
           />
           <div
             css={`
-              width: 150px;
+              width: 100%;
               display: flex;
-              align-items: flex-start;
+              align-items: center;
               gap: 14px;
+              flex-wrap: wrap;
             `}
           >
             <button
@@ -311,6 +327,25 @@ export const reatomFilters = (
             >
               clear logs
             </button>
+            <label
+              css={`
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+              `}
+            >
+              size
+              <input
+                model:valueAsNumber={filters.size}
+                css:width={atom((ctx) => `${Math.max(3, ctx.spy(filters.size).toString().length)}em`)}
+                css={`
+                  width: var(--width);
+                  background: #ffffff80;
+                  border: none;
+                  margin-left: 5px;
+                `}
+              />
+            </label>
             <label
               css={`
                 flex-shrink: 0;
