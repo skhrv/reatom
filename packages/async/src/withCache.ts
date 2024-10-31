@@ -247,6 +247,8 @@ export const withCache =
 
         cacheAtom.clear(ctx)
 
+        if ('promiseAtom' in anAsync) return anAsync(ctx)
+
         return latest ? anAsync(ctx, ...latest.params) : null
       }, `${cacheAtom.__reatom.name}.invalidate`)
 

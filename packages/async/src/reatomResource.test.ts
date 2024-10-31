@@ -220,6 +220,24 @@ test('withCache stale abort', async () => {
   expect(ctx.get(someResource.dataAtom)).toBe(1)
 })
 
+test('withCache stale invalidation', async () => {
+  const ctx = createTestCtx()
+  const someResource = reatomResource(async (ctx): Promise<number> => {
+    return ctx.get(someResource.dataAtom) + 1
+  }, 'someResource').pipe(withDataAtom(0), withCache({ staleTime: 1 }))
+
+  ctx.subscribeTrack(someResource)
+  await sleep(10)
+  expect(ctx.get(someResource.dataAtom)).toBe(1)
+  expect(ctx.get(someResource.cacheAtom).size).toBe(0)
+
+  someResource.cacheAtom.invalidate(ctx)
+  expect(ctx.get(someResource.pendingAtom)).toBe(1)
+  await sleep()
+  expect(ctx.get(someResource.pendingAtom)).toBe(0)
+  expect(ctx.get(someResource.dataAtom)).toBe(2)
+})
+
 test('do not rerun without deps on read', async () => {
   let i = 0
   const someResource = reatomResource(async (ctx) => {
