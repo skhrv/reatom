@@ -40,7 +40,7 @@ export const reatomInspector = ({ filters }: { filters: ReturnType<typeof reatom
 
     const idx = patchHistory.indexOf(patchState)
 
-    if (idx === -1) return []
+    if (idx === -1) return [patch]
 
     return patchHistory.slice(idx)
   }, `${name}.patchHistory`).pipe(withReset())

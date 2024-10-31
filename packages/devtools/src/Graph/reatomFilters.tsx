@@ -1,40 +1,140 @@
-import { parseAtoms, assign, LinkedListAtom, reatomString, Action, atom, reatomBoolean } from '@reatom/framework'
+import {
+  parseAtoms,
+  assign,
+  LinkedListAtom,
+  reatomString,
+  Action,
+  atom,
+  reatomBoolean,
+  Fn,
+  Ctx,
+  noop,
+} from '@reatom/framework'
 import { h, hf, JSX } from '@reatom/jsx'
-import { reatomZod } from '@reatom/npm-zod'
+import { reatomZod, ZodAtomization } from '@reatom/npm-zod'
 import { z } from 'zod'
 
-const Filters = z.object({
+export const Filter = z.object({
+  name: z.string().readonly(),
+  search: z.string(),
+  type: z.enum(['match', 'mismatch', 'exclude', 'highlight', 'off']),
+  color: z.string(),
+  default: z.boolean().readonly(),
+})
+export type Filter = ZodAtomization<typeof Filter>
+export type FilterJSON = z.infer<typeof Filter>
+
+export const Filters = z.object({
+  search: Filter,
+  valuesSearch: z.string(),
   hoverPreview: z.boolean(),
   inlinePreview: z.boolean(),
   timestamps: z.boolean(),
-  filtersFolded: z.boolean(),
-  actionsFolded: z.boolean(),
-  valuesSearch: z.string(),
-  list: z.array(
-    z.object({
-      name: z.string().readonly(),
-      search: z.string(),
-      type: z.enum(['match', 'mismatch', 'exclude', 'highlight', 'off']),
-      color: z.string(),
-      readonly: z.boolean().readonly(),
-    }),
-  ),
+  folded: z.boolean(),
+  list: z.array(Filter),
 })
-type Filters = z.infer<typeof Filters>
+export type Filters = ZodAtomization<typeof Filters>
+export type FiltersJSON = z.infer<typeof Filters>
 
 const DEFAULT_COLOR = '#BABACF'
 
-const initState: Filters = {
+const initState: FiltersJSON = {
+  search: { name: '', search: '', type: 'match', color: '#e82020', default: true },
   hoverPreview: true,
   inlinePreview: false,
   timestamps: true,
-  filtersFolded: false,
-  actionsFolded: false,
+  folded: false,
   valuesSearch: '',
-  list: [{ name: 'private', search: `(^_)|(\._)`, type: 'mismatch', color: DEFAULT_COLOR, readonly: true }],
+  list: [{ name: 'private', search: `(^_)|(\._)`, type: 'mismatch', color: DEFAULT_COLOR, default: true }],
 }
 const initSnapshot = JSON.stringify(initState)
-const version = 'v20'
+const version = 'v22'
+
+const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove: Fn<[Ctx]> }) => (
+  <tr>
+    <th
+      scope="row"
+      css={`
+        font-weight: normal;
+        text-align: start;
+        padding-right: 10px;
+      `}
+    >
+      {filter.name}
+    </th>
+    <td
+      css={`
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      `}
+    >
+      <FilterButton
+        title="match"
+        aria-label="match"
+        disabled={atom((ctx) => ctx.spy(filter.type) === 'match')}
+        on:click={filter.type.setMatch}
+      >
+        =
+      </FilterButton>
+      <FilterButton
+        title="not match"
+        aria-label="not match"
+        disabled={atom((ctx) => ctx.spy(filter.type) === 'mismatch')}
+        on:click={filter.type.setMismatch}
+      >
+        ≠
+      </FilterButton>
+      <FilterButton
+        isInput
+        title="highlight"
+        aria-label="highlight"
+        type="color"
+        on:click={(ctx, e) => {
+          if (ctx.get(filter.type) !== 'highlight') {
+            filter.type.setHighlight(ctx)
+            e.preventDefault()
+          }
+        }}
+        model:value={filter.color}
+        css:border={atom((ctx) =>
+          ctx.spy(filter.type) === 'highlight' ? '2px solid rgb(21 19 50 / 20%)' : '2px solid transparent',
+        )}
+        css={`
+          font-size: 10px;
+          filter: unset;
+          border: var(--border);
+        `}
+      />
+      {!(filter.default && filter.name === '') && (
+        <FilterButton
+          title="exclude"
+          aria-label="exclude"
+          disabled={atom((ctx) => ctx.spy(filter.type) === 'exclude')}
+          on:click={filter.type.setExclude}
+        >
+          ⊘
+        </FilterButton>
+      )}
+      <FilterButton
+        title={atom((ctx) => (ctx.spy(filter.type) === 'off' ? 'enable' : 'disable'))}
+        aria-label={atom((ctx) => (ctx.spy(filter.type) === 'off' ? 'enable' : 'disable'))}
+        disabled={atom((ctx) => ctx.spy(filter.type) === 'off')}
+        on:click={filter.type.setOff}
+      >
+        {atom((ctx) => (ctx.spy(filter.type) === 'off' ? '▶' : '◼'))}
+      </FilterButton>
+    </td>
+    <td>
+      <input id={id} placeholder="RegExp" model:value={filter.search} readonly={filter.default && filter.name === 'private'} />
+      {!filter.default && (
+        <button title="Remove" aria-label="Remove filter" on:click={remove}>
+          x
+        </button>
+      )}
+    </td>
+  </tr>
+)
 
 const FilterButton = ({
   isInput,
@@ -74,7 +174,7 @@ export const reatomFilters = (
   const KEY = name + version
 
   try {
-    var snapshot: undefined | Filters = Filters.parse(JSON.parse(localStorage.getItem(KEY) || initSnapshot))
+    var snapshot: undefined | FiltersJSON = Filters.parse(JSON.parse(localStorage.getItem(KEY) || initSnapshot))
   } catch {}
 
   const filters = reatomZod(Filters, {
@@ -88,13 +188,11 @@ export const reatomFilters = (
     name: `${name}.filters`,
   })
 
-  const newFilter = reatomString('', `${name}.include`)
-
   return assign(filters, {
     element: (
       <div>
         <fieldset
-          data-folded={filters.filtersFolded}
+          data-folded={filters.folded}
           css={`
             display: flex;
             flex-direction: column;
@@ -116,139 +214,62 @@ export const reatomFilters = (
             title="Show/hide filters"
             tabindex={0}
             role="button"
-            aria-expanded={filters.filtersFolded}
-            on:click={filters.filtersFolded.toggle}
+            aria-expanded={filters.folded}
+            on:click={filters.folded.toggle}
           >
             filters
           </legend>
           <form
             on:submit={(ctx, e) => {
               e.preventDefault()
-              const name = ctx.get(newFilter)
+              const name = ctx.get(filters.search.search)
+              const type = ctx.get(filters.search.type)
               filters.list.create(ctx, {
                 name,
                 search: name.toLocaleLowerCase(),
-                type: 'off',
-                readonly: false,
+                type,
+                default: false,
               })
-              newFilter.reset(ctx)
+              filters.search.search(ctx, '')
             }}
             css={`
               display: inline-flex;
               align-items: center;
             `}
           >
-            <input
-              model:value={newFilter}
-              placeholder="New filter"
+            <table
               css={`
-                width: 142px;
+                width: fit-content;
+                margin-left: -15px;
               `}
-            />
+            >
+              <FilterView id={filters.search.search.__reatom.name!} filter={filters.search} remove={noop} />
+            </table>
             <button
               css={`
                 width: 70px;
               `}
             >
-              create
+              save
             </button>
           </form>
+          <hr
+            css={`
+              width: 100%;
+            `}
+          />
           <table
             css={`
               width: fit-content;
             `}
           >
-            {filters.list.reatomMap((ctx, filter) => {
-              const id = `${filters.list.__reatom.name}-${filter.name}`
-              return (
-                <tr>
-                  <th
-                    scope="row"
-                    css={`
-                      font-weight: normal;
-                      text-align: start;
-                      padding-right: 10px;
-                    `}
-                  >
-                    {filter.name}
-                  </th>
-                  <td
-                    css={`
-                      display: flex;
-                      justify-content: center;
-                      align-items: center;
-                    `}
-                  >
-                    <FilterButton
-                      title="match"
-                      aria-label="match"
-                      disabled={atom((ctx) => ctx.spy(filter.type) === 'match')}
-                      on:click={filter.type.setMatch}
-                    >
-                      =
-                    </FilterButton>
-                    <FilterButton
-                      title="not match"
-                      aria-label="not match"
-                      disabled={atom((ctx) => ctx.spy(filter.type) === 'mismatch')}
-                      on:click={filter.type.setMismatch}
-                    >
-                      ≠
-                    </FilterButton>
-                    <FilterButton
-                      isInput
-                      title="highlight"
-                      aria-label="highlight"
-                      type="color"
-                      on:click={(ctx, e) => {
-                        if (ctx.get(filter.type) !== 'highlight') {
-                          filter.type.setHighlight(ctx)
-                          e.preventDefault()
-                        }
-                      }}
-                      model:value={filter.color}
-                      css:border={atom((ctx) =>
-                        ctx.spy(filter.type) === 'highlight'
-                          ? '2px solid rgb(21 19 50 / 20%)'
-                          : '2px solid transparent',
-                      )}
-                      css={`
-                        font-size: 10px;
-                        filter: unset;
-                        border: var(--border);
-                      `}
-                    />
-                    <FilterButton
-                      title="exclude"
-                      aria-label="exclude"
-                      disabled={atom((ctx) => ctx.spy(filter.type) === 'exclude')}
-                      on:click={filter.type.setExclude}
-                    >
-                      ⊘
-                    </FilterButton>
-                    <FilterButton
-                      title={atom((ctx) => (ctx.spy(filter.type) === 'off' ? 'enable' : 'disable'))}
-                      aria-label={atom((ctx) => (ctx.spy(filter.type) === 'off' ? 'enable' : 'disable'))}
-                      disabled={atom((ctx) => ctx.spy(filter.type) === 'off')}
-                      on:click={filter.type.setOff}
-                    >
-                      {atom((ctx) => (ctx.spy(filter.type) === 'off' ? '▶' : '◼'))}
-                    </FilterButton>
-                  </td>
-                  <td>
-                    <input id={id} placeholder="RegExp" model:value={filter.search} readonly={filter.readonly} />
-                    <button
-                      title="Remove"
-                      aria-label="Remove filter"
-                      disabled={filter.readonly}
-                      on:click={(ctx) => filters.list.remove(ctx, filter)}
-                    >
-                      x
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
+            {filters.list.reatomMap((ctx, filter) => (
+              <FilterView
+                id={`${filters.list.__reatom.name}-${filter.name}`}
+                filter={filter}
+                remove={(ctx) => filters.list.remove(ctx, filter)}
+              />
+            ))}
           </table>
           <input
             title="Search in states"
@@ -260,36 +281,6 @@ export const reatomFilters = (
               width: 200px;
             `}
           />
-        </fieldset>
-        <fieldset
-          data-folded={filters.actionsFolded}
-          css={`
-            display: flex;
-            gap: 10px;
-            margin: 0 20px;
-            top: 0;
-            overflow: auto;
-
-            &[data-folded] {
-              max-height: 0px;
-              overflow: hidden;
-              padding-bottom: 0;
-            }
-          `}
-        >
-          <legend
-            css={`
-              cursor: pointer;
-            `}
-            aria-label="Show/hide actions"
-            title="Show/hide actions"
-            tabindex={0}
-            role="button"
-            aria-expanded={filters.filtersFolded}
-            on:click={filters.actionsFolded.toggle}
-          >
-            actions
-          </legend>
           <div
             css={`
               width: 150px;

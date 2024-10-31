@@ -14,7 +14,7 @@ import {
 } from '@reatom/framework'
 import { h, hf, ctx } from '@reatom/jsx'
 import { actionsStates, followingsMap, getColor, getId, history } from './Graph/utils'
-import { reatomFilters } from './Graph/reatomFilters'
+import { Filter, reatomFilters } from './Graph/reatomFilters'
 import { reatomInspector } from './Graph/reatomInspector'
 import { reatomLines } from './Graph/reatomLines'
 import { ObservableHQ } from './ObservableHQ'
@@ -78,13 +78,14 @@ export const Graph = ({ clientCtx, getColor, width, height }: Props) => {
           let display = 'list-item'
           let background = 'none'
 
-          for (const { search, type, color } of ctx.spy(filters.list.array)) {
+          const applyFilter = ({ search, type, color }: Filter) => {
             const _type = ctx.spy(type)
 
-            if (_type === 'off') continue
+            if (_type === 'off') return
 
             try {
-              const result = new RegExp(`.*${ctx.spy(search)}.*`, 'i').test(name!)
+              const searchValue = ctx.spy(search)
+              const result = !searchValue || new RegExp(`.*${searchValue}.*`, 'i').test(name!)
 
               if (_type === 'match' && !result) {
                 display = 'none'
@@ -97,6 +98,12 @@ export const Graph = ({ clientCtx, getColor, width, height }: Props) => {
                 background = `${ctx.spy(color)}a0`
               }
             } catch {}
+          }
+
+          applyFilter(filters.search)
+          const filtersList = ctx.spy(filters.list.array)
+          for (let i = 0; i < filtersList.length; i++) {
+            applyFilter(filtersList[i]!)
           }
 
           const search = ctx.spy(valuesSearch)
