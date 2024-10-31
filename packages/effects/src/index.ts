@@ -41,11 +41,9 @@ export const onCtxAbort = (ctx: Ctx, cb: Fn<[AbortError]>): undefined | Unsubscr
     const handler = () => cb(toAbortError(controller.signal.reason))
     const cleanup = () => controller.signal.removeEventListener('abort', handler)
 
-    // TODO schedule
     if (controller.signal.aborted) handler()
     else {
       controller.signal.addEventListener('abort', handler)
-      ctx.schedule(() => controller.signal.removeEventListener('abort', handler), -1)
       return cleanup
     }
   }
@@ -347,7 +345,8 @@ export const withConcurrency: {
   (target: Action): Action =>
     concurrent(target, strategy as any)
 
-export const _spawn = action((ctx, fn: Fn, controller: AbortController, ...args: any[]) => {  
+/** Internal spawn action which is used to redefine the cause abort controller */
+export const _spawn = action((ctx, fn: Fn, controller: AbortController, ...args: any[]) => {
   abortCauseContext.set(ctx.cause, controller)
   return fn(ctx, ...args)
 }, '_spawn')
