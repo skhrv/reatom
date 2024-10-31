@@ -30,16 +30,16 @@ const DEFAULT_COLOR = '#BABACF'
 
 const initState: FiltersJSON = {
   search: { name: '', search: '', type: 'match', color: '#e82020', default: true },
-  hoverPreview: true,
-  inlinePreview: false,
+  hoverPreview: false,
+  inlinePreview: true,
   timestamps: true,
-  folded: false,
+  folded: true,
   valuesSearch: '',
   size: 1000,
   list: [{ name: 'private', search: `(^_)|(\._)`, type: 'mismatch', color: DEFAULT_COLOR, default: true }],
 }
 const initSnapshot = JSON.stringify(initState)
-const version = 'v23'
+const version = 'v24'
 
 const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove: Fn<[Ctx]> }) => (
   <tr>
@@ -207,6 +207,11 @@ export const reatomFilters = (
     element: (
       <div>
         <fieldset
+          on:click={(ctx, e) => {
+            if (e.target === e.currentTarget && ctx.get(filters.folded)) {
+              filters.folded(ctx, false)
+            }
+          }}
           data-folded={filters.folded}
           css={`
             display: flex;
@@ -232,7 +237,7 @@ export const reatomFilters = (
             aria-expanded={filters.folded}
             on:click={filters.folded.toggle}
           >
-            filters
+            controls
           </legend>
           <form
             on:submit={(ctx, e) => {
