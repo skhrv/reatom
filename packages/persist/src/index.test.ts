@@ -4,7 +4,6 @@ import { action, atom } from '@reatom/core'
 import { createTestCtx } from '@reatom/testing'
 import { noop, random } from '@reatom/utils'
 import { withComputed } from '@reatom/primitives'
-import { reatomResource } from '@reatom/async'
 
 import { createMemStorage, reatomPersist } from './'
 
@@ -141,14 +140,14 @@ test('should memoize a computer', () => {
   })
   assert.is(ctx.get(a), 2)
   assert.is(computedCalls, 1)
-  
+
   noop(ctx, {})
   ctx.get(a)
   assert.is(computedCalls, 2)
 })
 
 test('should not accept an action', () => {
-  assert.throws(() => reatomResource(async () => {}).pipe(withSomePersist('test')))
+  assert.throws(() => action().pipe(withSomePersist('test')))
 })
 
 test.run()

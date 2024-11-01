@@ -30,9 +30,6 @@
     "@reatom/lens": "^3.4.0",
     "@reatom/utils": "^3.4.0"
   },
-  "devDependencies": {
-    "@reatom/async": "^3.16.2"
-  },
   "author": "artalar",
   "license": "MIT",
   "repository": {
