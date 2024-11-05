@@ -1,3 +1,4 @@
+import { __count } from '@reatom/core'
 import { Action, Atom, AtomMut, AtomState, Ctx, Fn, Rec, action, atom } from '@reatom/core'
 import { abortCauseContext } from '@reatom/effects'
 import { getRootCause, withInit } from '@reatom/hooks'
@@ -30,7 +31,7 @@ export interface SearchParamsAtom extends Atom<Rec<string>> {
       parse?: (value?: string) => T
       serialize?: (value: T) => undefined | string
       replace?: boolean
-      subpath?: (value?: string) => unknown
+      path?: string
     },
   ): AtomMut<T>
 }
@@ -163,7 +164,7 @@ export const searchParamsAtom: SearchParamsAtom = Object.assign(
       urlAtom(ctx, newUrl, replace)
     }, 'searchParamsAtom._del') satisfies SearchParamsAtom['del'],
     lens: ((key, ...a: Parameters<typeof getSearchParamsOptions>) =>
-      atom(getSearchParamsOptions(...a).parse(), `searchParamsAtom#${a[0]}`).pipe(
+      atom(getSearchParamsOptions(...a).parse(), __count('searchParamsAtom')).pipe(
         // TODO
         // @ts-expect-error
         withSearchParamsPersist(key, ...a),
@@ -179,7 +180,7 @@ const getSearchParamsOptions = (
           parse?: (value?: string) => unknown
           serialize?: (value: unknown) => undefined | string
           replace?: boolean
-          subpath?: (value?: string) => unknown
+          path?: string
         },
       ]
 ) => {
@@ -187,22 +188,29 @@ const getSearchParamsOptions = (
     parse = (value = '') => String(value),
     serialize = (value: any) => (value === init ? undefined : String(value)),
     replace,
-    subpath = (value: any) => String(value),
+    path,
   } = typeof a[0] === 'object'
     ? a[0]
     : {
         parse: a[0],
         serialize: a[1],
         replace: undefined,
+        path: undefined,
       }
   const init = parse()
   return {
     parse,
     serialize,
     replace,
-    subpath,
+    path,
   }
 }
+
+const isSubpath = (currentPath: string, targetPath: string) =>
+  !targetPath ||
+  (targetPath[targetPath.length - 1] === '*'
+    ? `${currentPath}/`.startsWith(targetPath.slice(0, -1))
+    : `${currentPath}/` === targetPath)
 
 export function withSearchParamsPersist<T = string>(
   key: string,
@@ -215,10 +223,9 @@ export function withSearchParamsPersist<T = string>(
     parse?: (value?: string) => T
     serialize?: (value: T) => undefined | string
     replace?: boolean
-    subpath?: (value?: string) => unknown
+    path?: string
   },
 ): <A extends Atom<T>>(theAtom: A) => A
-
 export function withSearchParamsPersist(
   key: string,
   ...a:
@@ -228,11 +235,16 @@ export function withSearchParamsPersist(
           parse?: (value?: string) => unknown
           serialize?: (value?: unknown) => undefined | string
           replace?: boolean
-          subpath?: (value?: string) => unknown
+          path?: string
         },
       ]
 ) {
-  const { parse, serialize, replace, subpath } = getSearchParamsOptions(...a)
+  let { parse, serialize, replace, path = '' } = getSearchParamsOptions(...a)
+
+  const pathEnd = path[path.length - 1]
+  if (path && pathEnd !== '/' && pathEnd !== '*') {
+    path += '/'
+  }
 
   return (theAtom: Atom) => {
     const { computer, initState } = theAtom.__reatom
@@ -242,27 +254,28 @@ export function withSearchParamsPersist(
         const sp = ctx.get(searchParamsAtom)
         const currentPath = ctx.get(urlAtom).pathname
 
-        if (subpath && !currentPath.startsWith(subpath() as string)) {
-          return init(ctx)
-        }
-
-        return key in sp ? parse(sp[key]) : init(ctx)
+        return key in sp && isSubpath(currentPath, path) ? parse(sp[key]) : init(ctx)
       }),
     )
 
     theAtom.__reatom.computer = (ctx, state) => {
+      const currentPath = ctx.get(urlAtom).pathname
       ctx.spy(searchParamsAtom, (next, prev) => {
-         
-          if (key in next) {
-            if (!prev || prev[key] !== next[key]) {
-              state = parse(next[key])
-            }
-          } else {
-            if (prev && key in prev) {
-              state = initState(ctx)
-            }
+        if (key in next) {
+          if (!prev || prev[key] !== next[key]) {
+            state = parse(next[key])
           }
-
+        } else {
+          if (prev && key in prev) {
+            if (isSubpath(currentPath, path)) {
+              const prevState = state as string
+              ctx.schedule(() => {
+                searchParamsAtom.set(ctx, key, prevState, true)
+              }, 0)
+            }
+            state = initState(ctx)
+          }
+        }
       })
 
       if (computer) {
@@ -292,15 +305,18 @@ export function withSearchParamsPersist(
           }
         }
       }
+
       return state
     }
 
     theAtom.onChange((ctx, state) => {
-      const value = serialize(state)
-      if (value === undefined) {
-        searchParamsAtom.del(ctx, key, replace)
-      } else {
-        searchParamsAtom.set(ctx, key, value, replace)
+      if (ctx.cause === theAtom.__reatom.patch) {
+        const value = serialize(state)
+        if (value === undefined) {
+          searchParamsAtom.del(ctx, key, replace)
+        } else if (isSubpath(ctx.get(urlAtom).pathname, path)) {
+          searchParamsAtom.set(ctx, key, value, replace)
+        }
       }
       ctx.get(theAtom)
     })
