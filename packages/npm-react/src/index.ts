@@ -285,13 +285,16 @@ export const reatomComponent = <T extends object>(
       const [, forceUpdate] = React.useState({} as JSX.Element)
 
       React.useEffect(() => {
+        const initCause = ctx.get(propsAtom).ctx.cause
         let finalController = controller
         if (finalController.signal.aborted) {
           // Mount after unmount with the same cache.
           // Brave React World...
-          const initCause = ctx.get(propsAtom).ctx.cause
-          abortCauseContext.set(initCause, (finalController = new AbortController()))
+          finalController = new AbortController()
         }
+        // HMR case: ensure the last controller will be in the context.
+        abortCauseContext.set(initCause, finalController)
+
         const unsubscribe = ctx.subscribe(renderAtom, (element) => {
           if (element.REATOM_DEPS_CHANGE) forceUpdate(element)
         })
