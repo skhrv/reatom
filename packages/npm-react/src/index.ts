@@ -24,10 +24,11 @@ import { toAbortError } from '@reatom/utils'
 // useIsomorphicEffect removes it by replacing useLayoutEffect with useEffect during ssr
 export const useIsomorphicEffect = typeof document !== 'undefined' ? React.useLayoutEffect : React.useEffect
 
+// @ts-expect-error https://github.com/webpack/webpack/issues/12960#issuecomment-1086272918
+const { __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED } = React
+
 export const getComponentDebugName = (type: string): string => {
-  let Component =
-    // @ts-expect-error do we have another way?
-    React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.ReactCurrentOwner?.current?.type
+  let Component = __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.ReactCurrentOwner?.current?.type
 
   let name = Component?.displayName ?? Component?.name
   return name ? `Component.${name}.${type}` : `_${type}`
