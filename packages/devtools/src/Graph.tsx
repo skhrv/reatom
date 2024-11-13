@@ -245,7 +245,7 @@ export const Graph = ({ clientCtx, getColor, width, height }: Props) => {
 
       let isTimeStampWritten = !ctx.get(filters.timestamps)
 
-      const exludes = ctx
+      const excludes = ctx
         .get(filters.list.array)
         .filter(({ type }) => ctx.get(type) === 'exclude')
         .map(({ search }) => ctx.get(search))
@@ -255,11 +255,13 @@ export const Graph = ({ clientCtx, getColor, width, height }: Props) => {
         const isConnection =
           !prev && patch.cause!.proto.name === 'root' && (!patch.proto.isAction || patch.state.length === 0)
 
+        history.set(patch.proto, [])
+
         const result =
           !isConnection &&
           prev !== patch &&
           (!prev || !Object.is(patch.state, prev.state)) &&
-          exludes.every((search) => !new RegExp(`.*${search}.*`, 'i').test(patch.proto.name!))
+          excludes.every((search) => !new RegExp(`.*${search}.*`, 'i').test(patch.proto.name!))
 
         if (result && !isTimeStampWritten) {
           isTimeStampWritten = true

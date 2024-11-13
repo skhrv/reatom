@@ -109,7 +109,7 @@ export const ObservableHQ: FC<{ snapshot: any; actions?: Element }> = ({ snapsho
               `}
               ref={(ctx, inspectorEl) => {
                 const inspector = new Inspector(inspectorEl) as { fulfilled(data: any): void }
-                update = (data) => inspector.fulfilled(data)
+                update = (data) => inspector.fulfilled(data instanceof URL ? data.href : data)
 
                 if (isAtom(snapshot)) {
                   return ctx.subscribe(snapshot, update)

@@ -26,7 +26,7 @@ export const reatomInspector = ({ filters }: { filters: ReturnType<typeof reatom
         return calls?.length === 1 ? calls[calls.length - 1] : calls
       }
 
-      return patchState?.state instanceof URL ? patchState?.state.href : patchState?.state
+      return patchState?.state
     }),
   )
   const patchHistory = atom((ctx) => {
