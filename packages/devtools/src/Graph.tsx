@@ -250,12 +250,13 @@ export const Graph = ({ clientCtx, getColor, width, height }: Props) => {
         .filter(({ type }) => ctx.get(type) === 'exclude')
         .map(({ search }) => ctx.get(search))
       const isPass = (patch: AtomCache) => {
-        const [prev] = history.get(patch.proto) ?? []
+        const historyState = history.get(patch.proto)
+        const [prev] = historyState ?? []
 
         const isConnection =
-          !prev && patch.cause!.proto.name === 'root' && (!patch.proto.isAction || patch.state.length === 0)
+          !historyState && patch.cause!.proto.name === 'root' && (!patch.proto.isAction || patch.state.length === 0)
 
-        history.set(patch.proto, [])
+        if (!historyState) history.set(patch.proto, [])
 
         const result =
           !isConnection &&
