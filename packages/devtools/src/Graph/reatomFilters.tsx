@@ -103,8 +103,11 @@ const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove
           aria-label="exclude"
           disabled={atom((ctx) => ctx.spy(filter.type) === 'exclude')}
           on:click={filter.type.setExclude}
+          css={`
+            font-size: 10px;
+          `}
         >
-          ⊘
+          🗑️
         </FilterButton>
       )}
       <FilterButton
@@ -113,7 +116,7 @@ const FilterView = ({ id, filter, remove }: { id: string; filter: Filter; remove
         disabled={atom((ctx) => ctx.spy(filter.type) === 'off')}
         on:click={filter.type.setOff}
       >
-        {atom((ctx) => (ctx.spy(filter.type) === 'off' ? '▶' : '◼'))}
+        {atom((ctx) => (ctx.spy(filter.type) === 'off' ? 'll' : '◼'))}
       </FilterButton>
     </td>
     <td>
