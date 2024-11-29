@@ -36,6 +36,16 @@ export interface AsyncStatusesFirstAborted {
   isEverPending: true
   isEverSettled: false
 }
+export interface AsyncStatusesNextAbortedDuringPending {
+  isPending: true
+  isFulfilled: false
+  isRejected: false
+  isSettled: false
+
+  isFirstPending: false
+  isEverPending: true
+  isEverSettled: true
+}
 
 export interface AsyncStatusesAbortedPending {
   isPending: true

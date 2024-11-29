@@ -9,6 +9,7 @@ import {
   AsyncStatusesFirstPending,
   AsyncStatusesFulfilled,
   AsyncStatusesNeverPending,
+  AsyncStatusesNextAbortedDuringPending,
   AsyncStatusesRejected,
   asyncStatusesInitState,
   withStatusesAtom,
@@ -207,6 +208,30 @@ test('do not reject on abort', async () => {
     isEverPending: true,
     isEverSettled: false,
   } satisfies AsyncStatusesAbortedPending)
+  ;`👍` //?
+})
+
+test('isEverSettled after abort', async () => {
+  const fetchData = reatomAsync(async () => sleep()).pipe(withAbort(), withStatusesAtom())
+  const ctx = createTestCtx()
+
+  expect(ctx.get(fetchData.statusesAtom)).toBe(asyncStatusesInitState)
+  await fetchData(ctx)
+  expect(ctx.get(fetchData.statusesAtom).isFulfilled).toBe(true)
+
+  fetchData(ctx)
+  fetchData(ctx)
+  await null
+  expect(ctx.get(fetchData.statusesAtom)).toEqual({
+    isPending: true,
+    isFulfilled: false,
+    isRejected: false,
+    isSettled: false,
+
+    isFirstPending: false,
+    isEverPending: true,
+    isEverSettled: true,
+  } satisfies AsyncStatusesNextAbortedDuringPending)
   ;`👍` //?
 })
 
